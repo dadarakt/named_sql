@@ -18,6 +18,15 @@ defmodule NamedSQL.MixProject do
     ]
   end
 
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{
+        "GitHub" => "https://github.com/yourname/named_sql"
+      }
+    ]
+  end
+
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
