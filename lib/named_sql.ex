@@ -46,7 +46,6 @@ defmodule NamedSQL do
       case literal_keyword_keys(opts_ast, caller) do
         {:ok, keys} ->
           keys
-
         :dynamic ->
           raise ArgumentError,
             "named_sql/2 requires a *literal* keyword list to enable compile-time validation. " <>
