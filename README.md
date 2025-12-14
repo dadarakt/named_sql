@@ -51,7 +51,7 @@ end
 
 ---
 
-##Setup
+## Setup
 
 Use NamedSQL inside your Repo module:
 
@@ -116,16 +116,37 @@ Repo.named_sql(sql,
 )
 ```
 
-### Validation
+## Compile-time vs runtime validation
 
-This library provides compile-time validation for:
-- **Missing** parameters that appear in the query but not in the parameters
-- **Additional** parameters that do not appear in the query but in the parameters
-- **Duplicate** parameters
-- **Reserved keyword** parameters which are passed through to Ecto
+NamedSQL provides two explicit execution paths, depending on how parameters are supplied.
 
-Compile-time validation is only applied when a literal keyword map is presented for the parameters.
-Dynamic keyword lists will lead to runtime errors instead.
+### `named_sql/2` — compile-time validated via macro
+
+```elixir
+Repo.named_sql("SELECT * FROM users WHERE id = $id", id: 1)
+```
+
+This is the _recommended_ path.
+
+When the parameter list is a *literal keyword list*, NamedSQL performs validation at compile time:
+
+- Missing parameters
+- Additional parameters
+- Duplicate parameters
+- Use of reserved option names in the SQL query
+
+Passing a variable or dynamically constructed keyword list will result in a compile-time error.
+
+### named_sql_dynamic/2 — runtime validated (function)
+
+```elixir
+params = [id: user_id]
+Repo.named_sql_dynamic("SELECT * FROM users WHERE id = $id", params)
+```
+
+This function exists as an _explicit escape hatch_ for dynamic scenarios
+
+Parameters are validated at runtime only and the same checks apply as in the compile-time version.
 
 ---
 
@@ -165,12 +186,14 @@ It simply makes raw SQL safer and nicer to use.
 
 - Not a DSL, just a simple tool
 - No runtime atom creation
-- As much compile-time verification as is reasonable for a dynamic language
+- As much compile-time verification as is reasonable
 - Minimal surface area of macro
 
 ---
 
 License MIT
+
+---
 
 Documentation can be generated with [ExDoc](https://github.com/elixir-lang/ex_doc)
 and published on [HexDocs](https://hexdocs.pm). Once published, the docs can
