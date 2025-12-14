@@ -1,5 +1,61 @@
 defmodule NamedSQL do
-  @moduledoc false
+  @moduledoc """
+  NamedSQL provides a small, SQL-first abstraction for executing raw SQL queries
+  with **named parameters** and **compile-time validation**.
+
+  It is designed as a lightweight alternative to positional parameters (`$1`, `$2`, …)
+  when using `Ecto.Repo.query/3`, while avoiding the complexity of query DSLs or ORMs.
+
+  ## Key ideas
+
+  - SQL is treated as a first-class language
+  - Parameters are named (`$user_id`) instead of positional
+  - Compile-time validation is applied whenever possible
+  - No runtime atom creation
+  - Minimal macro surface area
+
+  ## Two execution paths
+
+  NamedSQL provides **two explicit APIs**, depending on whether parameters are known
+  at compile time or only at runtime:
+
+  ### Compile-time validated (macro)
+
+  `named_sql/2` is a macro that requires a **literal keyword list** for parameters.
+  This enables compile-time validation of:
+
+  - missing parameters
+  - additional parameters
+  - duplicate parameters
+  - use of reserved option names in the SQL query
+
+  If validation fails, compilation fails.
+
+  ### Runtime validated (function)
+
+  `named_sql_dynamic/2` is a regular function that accepts **dynamic keyword lists**.
+  The same validations are applied, but at runtime instead of compile time.
+
+  This explicit split avoids implicit contracts and makes dynamic behavior intentional.
+
+  ## Typical usage
+
+  NamedSQL is usually injected into an `Ecto.Repo`:
+
+      defmodule MyApp.Repo do
+        use Ecto.Repo, otp_app: :my_app
+        use NamedSQL, repo: __MODULE__
+      end
+
+  And then used at the callsite:
+
+      require MyApp.Repo
+
+      MyApp.Repo.named_sql(
+        "SELECT * FROM users WHERE id = $id",
+        id: 1
+      )
+  """
 
   defstruct [:normalized_sql, :expected_keys, :ordered_keys]
 
@@ -19,7 +75,35 @@ defmodule NamedSQL do
     quote do
       @named_sql_repo unquote(repo)
 
-      # Compile-time checked path (macro): requires literal keyword list
+      @doc """
+      Executes a SQL query with **named parameters**, performing **compile-time validation**.
+
+      This macro requires the parameter list to be a **literal keyword list**.
+      When this condition is met, the following validations are performed at compile time:
+
+      - all parameters referenced in the SQL query are provided
+      - no additional parameters are present
+      - no duplicate parameter keys exist
+      - reserved option names are not used as SQL placeholders
+
+      If validation fails, compilation fails with a descriptive error.
+
+      Because this is a macro, the calling module must `require` the repo.
+
+      ## Example
+
+          require Repo
+
+          Repo.named_sql(
+            "SELECT * FROM users WHERE id = $id",
+            id: 1
+          )
+
+      ## Restrictions
+
+      Passing a variable or dynamically constructed keyword list is not allowed.
+      For dynamic parameters, use `named_sql_dynamic/2` instead.
+      """
       defmacro named_sql(query_ast, opts_ast) do
         NamedSQL.__named_sql_macro__(@named_sql_repo, query_ast, opts_ast, __CALLER__)
       end
@@ -70,7 +154,27 @@ defmodule NamedSQL do
     end
   end
 
-  @doc false
+  @doc """
+  Executes a SQL query with named parameters, performing validation **at runtime**.
+
+  This function accepts dynamically constructed keyword lists and applies the same
+  parameter validations as `named_sql/2`, but at runtime instead of compile time:
+
+  - missing parameters
+  - additional parameters
+  - duplicate parameter keys
+  - use of reserved option names in the SQL query
+
+  This function exists as an explicit escape hatch for dynamic scenarios where
+  compile-time validation is not possible.
+
+  ## When to use this function
+
+  Use `named_sql_dynamic/2` only when parameters cannot be provided as a literal
+  keyword list. For all other cases, prefer `named_sql/2` to benefit from
+  compile-time validation.
+  """
+  @spec named_sql_dynamic(module(), binary(), keyword()) :: list(any())
   def named_sql_dynamic(repo, query, opts) when is_binary(query) do
     compiled = compile_sql!(query)
     {params_by_string, result_mapper} = params_by_string!(opts)

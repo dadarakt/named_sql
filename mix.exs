@@ -5,14 +5,15 @@ defmodule NamedSQL.MixProject do
     [
       app: :named_sql,
       version: "0.1.0",
-      elixir: "~> 1.18",
+      elixir: "~> 1.15",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
+      description: "SQL-first named parameters for Ecto.Repo.query/3 with compile-time validation",
+      package: package(),
       deps: deps(),
-      elixirc_paths: elixirc_paths(Mix.env())
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       extra_applications: [:logger]
@@ -23,16 +24,14 @@ defmodule NamedSQL.MixProject do
     [
       licenses: ["MIT"],
       links: %{
-        "GitHub" => "https://github.com/yourname/named_sql"
+        "GitHub" => "https://github.com/dadarakt/named_sql"
       }
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      {:ex_doc, "~> 0.32", only: :dev, runtime: false}
     ]
   end
 
