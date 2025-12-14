@@ -2,13 +2,13 @@ defmodule NamedSQL do
   @moduledoc false
 
   # Reserved DSL option keys (atoms, fixed at compile-time)
-  @reserved_keys [:result_mapper, :as, :timeout]
+  @reserved_keys [:result_mapper, :timeout, :log]
   @reserved_key_strings Enum.map(@reserved_keys, &Atom.to_string/1)
 
   defmacro __using__(opts) do
     repo =
       Keyword.get(opts, :repo) ||
-        raise ArgumentError, "use NamedSQL, repo: __MODULE__ is required"
+        raise ArgumentError, "`:repo` is a required option: `use NamedSQL, repo: <Your Repo>`"
 
     quote do
       @named_query_repo unquote(repo)
@@ -19,8 +19,6 @@ defmodule NamedSQL do
     end
   end
 
-  # ---- macro implementation (compile-time work) ----------------------------
-
   def __named_query_macro__(repo, query_ast, opts_ast, caller) do
     query = Macro.expand(query_ast, caller)
     expanded_opts = Macro.expand(opts_ast, caller)
@@ -30,24 +28,20 @@ defmodule NamedSQL do
             "named_query/2 expects a literal binary query at compile time, got: #{Macro.to_string(query_ast)}"
     end
 
-    # compile-time: reject map literal opts
     case expanded_opts do
-      {:%{}, _, _} ->
-        raise ArgumentError,
-              "named_query/2 expects a keyword list, not a map. Use: named_query(sql, key: value, ...)"
-
-      _ ->
+      opts when is_list(opts) ->
         :ok
+      _ ->
+        raise ArgumentError,
+              "named_query/2 expects a keyword list as the second parameter. Use: named_query(sql, key: value, ...)"
     end
 
     param_regex = ~r/\$(?<name>[A-Za-z_][A-Za-z0-9_-]*)/
 
-    # extracted_names are STRINGS (no atoms created from SQL)
     extracted_names =
       Regex.scan(param_regex, query, capture: :all_but_first)
       |> List.flatten()
 
-    # compile-time: forbid reserved keys in query placeholders
     bad_reserved =
       extracted_names
       |> Enum.filter(&(&1 in @reserved_key_strings))
@@ -69,13 +63,12 @@ defmodule NamedSQL do
         String.replace(acc, "$#{name}", "$#{idx}")
       end)
 
-    expected_param_keys = Map.keys(mapping)              # strings
+    expected_param_keys = Map.keys(mapping)
     ordered_param_keys =
       mapping
       |> Enum.sort_by(fn {_name, idx} -> idx end)
-      |> Enum.map(fn {name, _idx} -> name end)           # strings
+      |> Enum.map(fn {name, _idx} -> name end)
 
-    # compile-time missing/additional-key detection if opts literal
     case literal_keyword_keys(opts_ast, caller) do
       {:ok, provided_keys_atoms} ->
         provided_param_key_strings =
@@ -114,6 +107,7 @@ defmodule NamedSQL do
         :ok
     end
 
+    # Runtime logic in case of dynamic input
     quote do
       opts = unquote(opts_ast)
 
@@ -122,11 +116,9 @@ defmodule NamedSQL do
       result_mapper = Keyword.get(opts, :result_mapper)
       params_kw = Keyword.drop(opts, unquote(@reserved_keys))
 
-      # Build a string-keyed map from the keyword params (no new atoms)
       params_by_string =
         Map.new(params_kw, fn {k, v} -> {Atom.to_string(k), v} end)
 
-      # Runtime: check for missing/additional keys too (for dynamic opts)
       expected = unquote(expected_param_keys)
 
       missing =
@@ -165,8 +157,6 @@ defmodule NamedSQL do
       :dynamic
     end
   end
-
-  # ---- runtime (single place) ----------------------------------------------
 
   def runtime(repo, normalized_query, params, result_mapper) do
     with {:ok, %{rows: rows, columns: columns}} <- repo.query(normalized_query, params) do
