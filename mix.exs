@@ -8,9 +8,10 @@ defmodule NamedSQL.MixProject do
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
-      description: "SQL-first named parameters for Ecto.Repo.query/3 with compile-time validation",
+      description:
+        "SQL-first named parameters for Ecto.Repo.query/3 with compile-time validation",
       package: package(),
-      deps: deps(),
+      deps: deps()
     ]
   end
 

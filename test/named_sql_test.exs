@@ -129,6 +129,7 @@ defmodule NamedSQLTest do
 
   defp assert_compile_time_raise(exception, message_regex, fun) do
     code = fun.()
+
     assert_raise exception, message_regex, fn ->
       Code.compile_string(code)
     end
